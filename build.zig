@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
 
     const exe_client = b.addExecutable(.{
         .name = "wazzup-client",
-        .root_source_file = std.Build.FileSource.relative("src/client/main.zig"),
+        .root_source_file = std.Build.FileSource.relative("src/main_client.zig"),
         .target = target,
         .optimize = optimize,
         .version = version,
@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
 
     const exe_server = b.addExecutable(.{
         .name = "wazzup-server",
-        .root_source_file = std.Build.FileSource.relative("src/server/main.zig"),
+        .root_source_file = std.Build.FileSource.relative("src/main_server.zig"),
         .target = target,
         .optimize = optimize,
         .version = version,
