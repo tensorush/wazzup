@@ -20,7 +20,7 @@ pub fn main() !void {
     const writer = std_out.writer();
 
     // Get client name
-    writer.writeAll("Enter your name:\n");
+    writer.print("Enter your name (under {d} bytes):\n", .{main_server.MAX_NAME_LEN});
     var name_buf: [main_server.MAX_NAME_LEN]u8 = undefined;
     const name_len = reader.readAll(name_buf[0..]);
 
@@ -28,7 +28,7 @@ pub fn main() !void {
     const stream = try std.net.tcpConnectToHost(allocator, "127.0.0.1", 1337);
     try stream.writeAll(name_buf[0..name_len]);
 
-    // TODO: Spawn another thread to poll server connection and receive messages
+    // TODO: Spawn threads to poll server connection and receive messages
 
     // Prepare event loop variables
     var msg_buf: [main_server.MAX_MSG_LEN]u8 = undefined;

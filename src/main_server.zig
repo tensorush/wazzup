@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const MAX_MSG_LEN = 1 << 8;
 pub const MAX_NAME_LEN = 1 << 5;
-pub const MAX_NUM_CLIENTS = 1 << 10;
+const MAX_NUM_CLIENTS = 1 << 10;
 
 pub fn main() !void {
     // Define allocator
@@ -23,6 +23,7 @@ pub fn main() !void {
     try server.listen(address);
 
     // Initialize connection pool
+    var mutex = std.Thread.Mutex{};
     var clients = std.StringHashMapUnmanaged(std.net.StreamServer.Connection){};
     try clients.ensureTotalCapacity(allocator, MAX_NUM_CLIENTS);
     defer clients.deinit(allocator);
@@ -33,7 +34,7 @@ pub fn main() !void {
     var name_len: usize = undefined;
     var name: []u8 = undefined;
 
-    // TODO: Spawn another thread to poll client connections and broadcast messages
+    // TODO: Spawn threads to poll client connections and broadcast messages
 
     // Start event loop
     while (true) {
@@ -45,9 +46,12 @@ pub fn main() !void {
 
         // Allocate name copy
         name = try allocator.alloc(u8, name_len);
-        std.mem.copy(u8, name, name_buf[0..name_len]);
+        @memcpy(name, name_buf[0..name_len]);
 
         // Store client connection by client name
+        mutex.lock();
+        defer mutex.unlock();
+
         clients.putAssumeCapacity(name, .{ .connection = connection });
     }
 }
