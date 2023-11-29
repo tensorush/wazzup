@@ -28,7 +28,7 @@ pub fn main() !void {
     const stream = try std.net.tcpConnectToHost(allocator, "127.0.0.1", 1337);
     try stream.writeAll(name_buf[0..name_len]);
 
-    // TODO: Spawn threads to poll server connection and receive messages
+    // TODO: Spawn threads to poll server connection and send/receive messages
 
     // Prepare event loop variables
     var msg_buf: [main_server.MAX_MSG_LEN]u8 = undefined;
