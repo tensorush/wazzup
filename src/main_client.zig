@@ -17,8 +17,8 @@ pub fn main() !void {
 
     // Connect to server
     const stream = try std.net.tcpConnectToHost(allocator, config.HOST, config.PORT);
-    const stream_writer = stream.writer();
     const stream_reader = stream.reader();
+    const stream_writer = stream.writer();
 
     // Prompt client for name
     try std_writer.print("Please, enter your name, not longer than {d} bytes:\n", .{config.MAX_NAME_LEN});

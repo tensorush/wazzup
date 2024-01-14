@@ -15,10 +15,13 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // Pre-allocate client message buffers
-    var msg_bufs = MsgBufs{};
-    try msg_bufs.ensureTotalCapacity(allocator, config.MAX_NUM_CONNS);
-    defer msg_bufs.deinit(allocator);
+    // Define TCP server
+    const address = try std.net.Address.parseIp(config.HOST, config.PORT);
+    var server = try xev.TCP.init(address);
+
+    // Listen for TCP connections
+    try server.bind(address);
+    try server.listen(config.KERNEL_BACKLOG);
 
     // Define thread pool for event loop
     var thread_pool = xev.ThreadPool.init(.{});
@@ -29,18 +32,15 @@ pub fn main() !void {
     defer loop.deinit();
 
     // Prepare completion for accepting client connections
-    var accept_completion: xev.Completion = undefined;
+    var completion: xev.Completion = undefined;
 
-    // Define TCP server
-    const address = try std.net.Address.parseIp(config.HOST, config.PORT);
-    var server = try xev.TCP.init(address);
-
-    // Listen for TCP connections
-    try server.bind(address);
-    try server.listen(config.KERNEL_BACKLOG);
+    // Pre-allocate client message buffers
+    var msg_bufs = MsgBufs{};
+    try msg_bufs.ensureTotalCapacity(allocator, config.MAX_NUM_CONNS);
+    defer msg_bufs.deinit(allocator);
 
     // Accept client connections
-    server.accept(&loop, &accept_completion, MsgBufs, &msg_bufs, acceptCallback);
+    server.accept(&loop, &completion, MsgBufs, &msg_bufs, acceptCallback);
 
     // Enter event loop
     try loop.run(.until_done);
@@ -61,15 +61,19 @@ fn acceptCallback(msg_bufs_opt: ?*MsgBufs, loop: *xev.Loop, completion: *xev.Com
 }
 
 /// Once message is received, broadcast message and keep receiving messages from this client connection.
-fn receiveCallback(msg_bufs_opt: ?*MsgBufs, loop: *xev.Loop, completion: *xev.Completion, cur_conn: xev.TCP, read_buf: xev.ReadBuffer, msg_len_err: xev.ReadError!usize) xev.CallbackAction {
+fn receiveCallback(msg_bufs_opt: ?*MsgBufs, loop: *xev.Loop, completion: *xev.Completion, conn: xev.TCP, read_buf: xev.ReadBuffer, msg_len_err: xev.ReadError!usize) xev.CallbackAction {
     const msg_len = msg_len_err catch unreachable;
-    var conn_iter = msg_bufs_opt.?.keyIterator();
+    var msg_bufs = msg_bufs_opt.?;
 
-    while (conn_iter.next()) |conn| {
-        if (conn.fd != cur_conn.fd) {
-            conn.write(loop, completion, .{ .slice = read_buf.slice[0..msg_len] }, void, null, broadcastCallback);
+    var conn_iter = msg_bufs.keyIterator();
+    while (conn_iter.next()) |next_conn| {
+        if (next_conn.fd != conn.fd) {
+            next_conn.write(loop, completion, .{ .slice = read_buf.slice[0..msg_len] }, void, null, broadcastCallback);
         }
     }
+
+    var msg_buf = msg_bufs.getPtr(conn).?;
+    msg_buf.discard(msg_len);
 
     return .rearm;
 }
