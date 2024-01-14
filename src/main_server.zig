@@ -1,57 +1,86 @@
 const std = @import("std");
+const xev = @import("xev");
+const config = @import("config.zig");
 
-pub const MAX_MSG_LEN = 1 << 8;
-pub const MAX_NAME_LEN = 1 << 5;
-const MAX_NUM_CLIENTS = 1 << 10;
+const MsgBufs = std.AutoHashMapUnmanaged(xev.TCP, MsgBuf);
+const MsgBuf = std.fifo.LinearFifo(u8, .{ .Static = config.MAX_MSG_BUF_SIZE });
 
 pub fn main() !void {
     // Define allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.deinit() == .leak) {
-        @panic("Memory leak has occurred!\n");
+        @panic("Memory leak has occurred!");
     };
     var arena = std.heap.ArenaAllocator.init(gpa.allocator());
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // Create TCP socket server
-    var server = std.net.StreamServer.init(.{ .kernel_backlog = MAX_NUM_CLIENTS, .reuse_address = true, .reuse_port = true });
-    defer server.deinit();
+    // Pre-allocate client message buffers
+    var msg_bufs = MsgBufs{};
+    try msg_bufs.ensureTotalCapacity(allocator, config.MAX_NUM_CONNS);
+    defer msg_bufs.deinit(allocator);
 
-    // Listen on address
-    const address = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, 1337);
-    try server.listen(address);
+    // Define thread pool for event loop
+    var thread_pool = xev.ThreadPool.init(.{});
+    defer thread_pool.deinit();
 
-    // Initialize connection pool
-    var mutex = std.Thread.Mutex{};
-    var clients = std.StringHashMapUnmanaged(std.net.StreamServer.Connection){};
-    try clients.ensureTotalCapacity(allocator, MAX_NUM_CLIENTS);
-    defer clients.deinit(allocator);
+    // Define event loop
+    var loop = try xev.Loop.init(.{ .entries = config.MAX_NUM_CONNS, .thread_pool = &thread_pool });
+    defer loop.deinit();
 
-    // Prepare event loop variables
-    var connection: std.net.StreamServer.Connection = undefined;
-    var name_buf: [MAX_NAME_LEN]u8 = undefined;
-    var name_len: usize = undefined;
-    var name: []u8 = undefined;
+    // Prepare completion for accepting client connections
+    var accept_completion: xev.Completion = undefined;
 
-    // TODO: Spawn threads to poll client connections and broadcast messages
+    // Define TCP server
+    const address = try std.net.Address.parseIp(config.HOST, config.PORT);
+    var server = try xev.TCP.init(address);
 
-    // Start event loop
-    while (true) {
-        // Accept connection
-        connection = try server.accept();
+    // Listen for TCP connections
+    try server.bind(address);
+    try server.listen(config.KERNEL_BACKLOG);
 
-        // Read client name
-        name_len = try connection.stream.readAll(name_buf[0..]);
+    // Accept client connections
+    server.accept(&loop, &accept_completion, MsgBufs, &msg_bufs, acceptCallback);
 
-        // Allocate name copy
-        name = try allocator.alloc(u8, name_len);
-        @memcpy(name, name_buf[0..name_len]);
+    // Enter event loop
+    try loop.run(.until_done);
+}
 
-        // Store client connection by client name
-        mutex.lock();
-        defer mutex.unlock();
+/// Once client connection is accepted, receive message and keep accepting new client connections.
+fn acceptCallback(msg_bufs_opt: ?*MsgBufs, loop: *xev.Loop, completion: *xev.Completion, conn_err: xev.AcceptError!xev.TCP) xev.CallbackAction {
+    const conn = conn_err catch unreachable;
 
-        clients.putAssumeCapacity(name, .{ .connection = connection });
+    var msg_bufs = msg_bufs_opt.?;
+    msg_bufs.putAssumeCapacity(conn, MsgBuf.init());
+
+    var msg_buf = msg_bufs.getPtr(conn).?;
+    var msg_slice = msg_buf.writableWithSize(config.MAX_MSG_LEN) catch unreachable;
+    conn.read(loop, completion, .{ .slice = msg_slice[0..] }, MsgBufs, msg_bufs, receiveCallback);
+
+    return .rearm;
+}
+
+/// Once message is received, broadcast message and keep receiving messages from this client connection.
+fn receiveCallback(msg_bufs_opt: ?*MsgBufs, loop: *xev.Loop, completion: *xev.Completion, cur_conn: xev.TCP, read_buf: xev.ReadBuffer, msg_len_err: xev.ReadError!usize) xev.CallbackAction {
+    const msg_len = msg_len_err catch unreachable;
+    var conn_iter = msg_bufs_opt.?.keyIterator();
+
+    while (conn_iter.next()) |conn| {
+        if (conn.fd != cur_conn.fd) {
+            conn.write(loop, completion, .{ .slice = read_buf.slice[0..msg_len] }, void, null, broadcastCallback);
+        }
     }
+
+    return .rearm;
+}
+
+/// Once message is broadcasted, there is no need to do anything else.
+fn broadcastCallback(userdata: ?*void, loop: *xev.Loop, completion: *xev.Completion, conn: xev.TCP, write_buf: xev.WriteBuffer, msg_len_err: xev.WriteError!usize) xev.CallbackAction {
+    _ = userdata;
+    _ = loop;
+    _ = completion;
+    _ = conn;
+    _ = write_buf;
+    _ = msg_len_err catch unreachable;
+    return .disarm;
 }

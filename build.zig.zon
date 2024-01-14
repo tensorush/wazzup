@@ -2,4 +2,10 @@
     .name = "wazzup",
     .version = "0.1.0",
     .paths = .{""},
+    .dependencies = .{
+        .xev = .{
+            .url = "https://github.com/mitchellh/libxev/archive/2494978.tar.gz",
+            .hash = "12203de3dbf9c235903c71122448ef031622ba8d64b250205934e2a65018b92b9717",
+        },
+    },
 }

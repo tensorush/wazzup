@@ -3,15 +3,16 @@
 [![CI][ci-shield]][ci-url]
 [![LC][lc-shield]][lc-url]
 
-### Minimal chat client and server akin to [smallchat](https://github.com/antirez/smallchat) created by [Salvatore Sanfilippo](https://github.com/antirez).
+### Minimal command-line chat.
+
+> WIP!
 
 #### :rocket: Usage
 
 ```sh
 git clone https://github.com/tensorush/wazzup.git
 cd wazzup/
-zig build exe-server
-zig build exe-client
+zig build server
 ```
 
 <!-- MARKDOWN LINKS -->

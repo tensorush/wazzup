@@ -1,45 +1,37 @@
 const std = @import("std");
-const main_server = @import("main_server.zig");
+const config = @import("config.zig");
 
 pub fn main() !void {
     // Define allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.deinit() == .leak) {
-        @panic("Memory leak has occurred!\n");
+        @panic("Memory leak has occurred!");
     };
     var arena = std.heap.ArenaAllocator.init(gpa.allocator());
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // Initialize standard input reader
-    const std_in = std.io.getStdIn();
-    const reader = std_in.reader();
-
-    // Initialize standard output writer
-    const std_out = std.io.getStdOut();
-    const writer = std_out.writer();
-
-    // Get client name
-    writer.print("Enter your name (under {d} bytes):\n", .{main_server.MAX_NAME_LEN});
-    var name_buf: [main_server.MAX_NAME_LEN]u8 = undefined;
-    const name_len = reader.readAll(name_buf[0..]);
+    // Define standard IO handles
+    const std_reader = std.io.getStdIn().reader();
+    const std_writer = std.io.getStdOut().writer();
 
     // Connect to server
-    const stream = try std.net.tcpConnectToHost(allocator, "127.0.0.1", 1337);
-    try stream.writeAll(name_buf[0..name_len]);
+    const stream = try std.net.tcpConnectToHost(allocator, config.HOST, config.PORT);
+    const stream_writer = stream.writer();
+    const stream_reader = stream.reader();
 
-    // TODO: Spawn threads to poll server connection and send/receive messages
+    // Prompt client for name
+    try std_writer.print("Please, enter your name, not longer than {d} bytes:\n", .{config.MAX_NAME_LEN});
 
-    // Prepare event loop variables
-    var msg_buf: [main_server.MAX_MSG_LEN]u8 = undefined;
-    var msg_len: usize = undefined;
+    // Receive client's name
+    while (std_reader.streamUntilDelimiter(stream_writer, '\n', config.MAX_MSG_LEN)) {} else |err| switch (err) {
+        error.EndOfStream, error.StreamTooLong => try stream_writer.writeByte('\n'),
+        else => |e| return e,
+    }
 
-    // Start event loop
-    while (true) {
-        // Read message
-        msg_len = try reader.readAll(msg_buf[0..]);
-
-        // Send message
-        try stream.writeAll(msg_buf[0..msg_len]);
+    // Receive another client's name
+    while (stream_reader.streamUntilDelimiter(std_writer, '\n', config.MAX_MSG_LEN)) {} else |err| switch (err) {
+        error.EndOfStream, error.StreamTooLong => try std_writer.writeByte('\n'),
+        else => |e| return e,
     }
 }
