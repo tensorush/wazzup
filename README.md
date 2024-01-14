@@ -3,7 +3,7 @@
 [![CI][ci-shield]][ci-url]
 [![LC][lc-shield]][lc-url]
 
-### Minimal command-line chat.
+### Minimal command-line chat application using [libxev](https://github.com/mitchellh/libxev).
 
 > WIP!
 
