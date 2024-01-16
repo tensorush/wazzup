@@ -36,6 +36,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .version = version,
     });
+    exe_client.root_module.addImport("xev", xev_mod);
     b.installArtifact(exe_client);
 
     const exe_client_run = b.addRunArtifact(exe_client);
