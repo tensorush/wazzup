@@ -25,7 +25,7 @@ pub fn main() !void {
     var conn = try xev.TCP.init(address);
 
     // Define asynchronous client IO interface
-    var client = Client{ .conn = &conn, .reader = try xev.File.init(in), .writer = try xev.File.init(out) };
+    var client = Client{ .reader = try xev.File.init(in), .writer = try xev.File.init(out), .conn = &conn };
 
     // Define thread pool for event loop
     var thread_pool = xev.ThreadPool.init(.{});
@@ -47,23 +47,22 @@ pub fn main() !void {
 }
 
 /// Once connected to server, start scanning client input and receiving messages from server.
-fn connectCallback(io_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, conn: xev.TCP, err: xev.ConnectError!void) xev.CallbackAction {
+fn connectCallback(client_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, conn: xev.TCP, err: xev.ConnectError!void) xev.CallbackAction {
     _ = err catch unreachable;
-    var io = io_opt.?;
+    var io = client_opt.?;
 
     io.reader.read(loop, completion, .{ .slice = io.in_msg_buf[0..] }, Client, io, scanCallback);
-
     conn.read(loop, completion, .{ .slice = io.out_msg_buf[0..] }, Client, io, receiveCallback);
 
     return .disarm;
 }
 
 /// Once client input is scanned, send message to server and keep scanning client input.
-fn scanCallback(io_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, _: xev.File, read_buf: xev.ReadBuffer, msg_len_err: xev.ReadError!usize) xev.CallbackAction {
+fn scanCallback(client_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, _: xev.File, read_buf: xev.ReadBuffer, msg_len_err: xev.ReadError!usize) xev.CallbackAction {
     const msg_len = msg_len_err catch unreachable;
-    var io = io_opt.?;
+    var client = client_opt.?;
 
-    io.conn.write(loop, completion, .{ .slice = read_buf.slice[0..msg_len] }, void, null, (struct {
+    client.conn.write(loop, completion, .{ .slice = read_buf.slice[0..msg_len] }, void, null, (struct {
         fn callback(_: ?*void, _: *xev.Loop, _: *xev.Completion, _: xev.TCP, _: xev.WriteBuffer, r: xev.WriteError!usize) xev.CallbackAction {
             _ = r catch unreachable;
             return .disarm;
@@ -74,11 +73,11 @@ fn scanCallback(io_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, 
 }
 
 /// Once message is received from server, print message to client output and keep receiving messages from server.
-fn receiveCallback(io_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, _: xev.TCP, read_buf: xev.ReadBuffer, msg_len_err: xev.ReadError!usize) xev.CallbackAction {
+fn receiveCallback(client_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, _: xev.TCP, read_buf: xev.ReadBuffer, msg_len_err: xev.ReadError!usize) xev.CallbackAction {
     const msg_len = msg_len_err catch unreachable;
-    var io = io_opt.?;
+    var client = client_opt.?;
 
-    io.writer.write(loop, completion, .{ .slice = read_buf.slice[0..msg_len] }, void, null, (struct {
+    client.writer.write(loop, completion, .{ .slice = read_buf.slice[0..msg_len] }, void, null, (struct {
         fn callback(_: ?*void, _: *xev.Loop, _: *xev.Completion, _: xev.File, _: xev.WriteBuffer, r: xev.WriteError!usize) xev.CallbackAction {
             _ = r catch unreachable;
             return .disarm;
