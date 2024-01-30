@@ -49,10 +49,10 @@ pub fn main() !void {
 /// Once connected to server, start scanning client input and receiving messages from server.
 fn connectCallback(client_opt: ?*Client, loop: *xev.Loop, completion: *xev.Completion, conn: xev.TCP, err: xev.ConnectError!void) xev.CallbackAction {
     _ = err catch unreachable;
-    var io = client_opt.?;
+    var client = client_opt.?;
 
-    io.reader.read(loop, completion, .{ .slice = io.in_msg_buf[0..] }, Client, io, scanCallback);
-    conn.read(loop, completion, .{ .slice = io.out_msg_buf[0..] }, Client, io, receiveCallback);
+    client.reader.read(loop, completion, .{ .slice = client.in_msg_buf[0..] }, Client, client, scanCallback);
+    conn.read(loop, completion, .{ .slice = client.out_msg_buf[0..] }, Client, client, receiveCallback);
 
     return .disarm;
 }
