@@ -4,8 +4,8 @@
     .paths = .{""},
     .dependencies = .{
         .xev = .{
-            .url = "https://github.com/mitchellh/libxev/archive/2494978.tar.gz",
-            .hash = "12203de3dbf9c235903c71122448ef031622ba8d64b250205934e2a65018b92b9717",
+            .url = "https://github.com/mitchellh/libxev/archive/4e67818.tar.gz",
+            .hash = "12203f87e00caa6c07c02a748f234a5c0ee2ca5c334ec464e88810d93e7b5495a56f",
         },
     },
 }

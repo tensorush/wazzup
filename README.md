@@ -3,9 +3,7 @@
 [![CI][ci-shield]][ci-url]
 [![LC][lc-shield]][lc-url]
 
-### Minimal command-line chat application using [libxev](https://github.com/mitchellh/libxev).
-
-> WIP!
+### Minimal command-line chat example using [libxev](https://github.com/mitchellh/libxev).
 
 #### :rocket: Usage
 
@@ -13,6 +11,11 @@
 git clone https://github.com/tensorush/wazzup.git
 cd wazzup/
 zig build server
+```
+
+```sh
+cd wazzup/
+zig build client
 ```
 
 <!-- MARKDOWN LINKS -->
