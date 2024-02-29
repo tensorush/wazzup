@@ -4,7 +4,6 @@ const config = @import("config.zig");
 
 const Server = @This();
 
-const SocketSet = std.AutoHashMapUnmanaged(xev.TCP, void);
 const SocketMsgBufMap = std.AutoHashMapUnmanaged(xev.TCP, MsgBuf);
 const SocketCompletionMap = std.AutoHashMapUnmanaged(xev.TCP, xev.Completion);
 
@@ -13,7 +12,7 @@ const MsgBuf = struct {
     idx: usize = 0,
 
     pub fn next(self: *MsgBuf) []u8 {
-        defer self.idx = (self.idx + 1) % config.MAX_NUM_MSGS;
+        defer self.idx = if (self.idx < config.MAX_NUM_MSGS - 1) self.idx + 1 else 0;
         return self.items[self.idx][0..];
     }
 };
